@@ -22,7 +22,5 @@ class CustomTransformer(BaseEstimator, TransformerMixin):
 imdb_dataset = load_dataset("imdb")
 train_df = imdb_dataset["train"].to_pandas()
 
-print(train_df.head())
-
 pipe = make_pipeline(CustomTransformer(), CountVectorizer(), MultinomialNB())
 pipe.fit(train_df["text"], train_df["label"])
