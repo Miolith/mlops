@@ -14,6 +14,7 @@ mydb = myclient["mydatabase"]
 mycol = mydb["preddata"]
 rabbitMQHost = "localhost"
 
+app = FastAPI()
 
 # if model.joblib is not present, train the model
 try:
@@ -23,7 +24,6 @@ except:
 
 pipe = loadModel()
 
-app = FastAPI()
 
 class MQClient(object):
     internal_lock = threading.Lock()
@@ -46,8 +46,8 @@ class MQClient(object):
 
         while True:
             with self.internal_lock:
-                self.connection.process_data_events(10)
-                sleep(25)
+                self.connection.process_data_events()
+                sleep(0.1)
 
     def _on_response(self, ch, method, props, body):
          self.queue[props.correlation_id] = body
@@ -65,13 +65,14 @@ class MQClient(object):
 
 mqClient = MQClient("hello")
 
+
 @app.get("/")
-def read_root():
+async def read_root():
     return {"Hello": "World"}
 
 # Send message to RabbitMQ queue and return prediction
 @app.post("/predict")
-def predict(X: str):
+async def predict(X: str):
     # generate unique id for each request
     id = str(uuid.uuid4())
     mydict = {"id":id, "text":X}
@@ -86,7 +87,7 @@ def predict(X: str):
 
 
 @app.post("/retrain")
-def retrain(X: str, y: str):
+async def retrain(X: str, y: str):
     df = pd.DataFrame([X], columns = ["text"])
     df["label"] = 1 if y == "positive" else 0
     pipe.fit(df["text"], df["label"])

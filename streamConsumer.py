@@ -27,16 +27,18 @@ def main():
 
         values = list(mycol.find({"id":idVal},{"_id":0, "text":""}))[0]
 
-        predict_val = pipe.predict([values['text']])
+        predict_input = pd.DataFrame([values['text']], columns=['text'])
+        print("Prediction input: ", predict_input["text"])
+        predict_val = int(pipe.predict(predict_input["text"])[0])
         query_val = {"id":idVal}
-        print("Prediction value" + str(predict_val[0]))
-        pred_val_query = {"$set":{"prediction":predict_val[0]}}
+        print("Prediction value: ", predict_val)
+        pred_val_query = {"$set":{"prediction":predict_val}}
         mycol.update_one(query_val, pred_val_query)
 
         ch.basic_publish(exchange='',
                         routing_key=properties.reply_to,
                         properties=pika.BasicProperties(correlation_id=properties.correlation_id),
-                        body=str(predict_val[0])
+                        body=str(predict_val)
         )
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
