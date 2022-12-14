@@ -1,45 +1,88 @@
 from fastapi import FastAPI
 import pandas as pd
-from train_model import pipe
+from train_model import trainModel
+from load_model import loadModel
 import pika
+import uuid
+import pymongo
+import threading
+from time import sleep
+
+dbHost = "localhost"
+myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
+mydb = myclient["mydatabase"]
+mycol = mydb["preddata"]
+rabbitMQHost = "localhost"
+
+
+# if model.joblib is not present, train the model
+try:
+    pipe = loadModel()
+except:
+    trainModel()
+
+pipe = loadModel()
 
 app = FastAPI()
 
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-channel = connection.channel()
-qd = channel.queue_declare(queue="", durable=True)
-callback_queue = qd.method.queue
+class MQClient(object):
+    internal_lock = threading.Lock()
+    queue = {}
+
+    def __init__(self, queue_id):
+
+        self.queue_id = queue_id
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitMQHost))
+        self.channel = self.connection.channel()
+        result = self.channel.queue_declare(queue="", durable=True)
+        self.callback_queue = result.method.queue
+        thread = threading.Thread(target=self._process_data_events)
+        thread.setDaemon(True)
+        thread.start()
+
+
+    def _process_data_events(self):
+        self.channel.basic_consume(on_message_callback=self._on_response, auto_ack=True, queue=self.callback_queue)
+
+        while True:
+            with self.internal_lock:
+                self.connection.process_data_events(10)
+                sleep(25)
+
+    def _on_response(self, ch, method, props, body):
+         self.queue[props.correlation_id] = body
+         print(body)
+
+
+    def send_request(self, payload):
+        corr_id = str(uuid.uuid4())
+        self.queue[corr_id] = None
+        self.channel.basic_publish(exchange='',
+                                   routing_key=self.queue_id,
+                                   properties=pika.BasicProperties(reply_to=self.callback_queue, correlation_id=corr_id),
+                                   body=payload)
+        return corr_id  
+
+mqClient = MQClient("hello")
 
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
 
-"""
-@app.post("/predict")
-def predict(X: str):
-    df = pd.DataFrame([X], columns = ["text"])
-    result = "positive" if pipe.predict(df["text"])[0] == 1 else "negative"
-    return {"prediction": result}
-"""
-
 # Send message to RabbitMQ queue and return prediction
 @app.post("/predict")
 def predict(X: str):
-    channel.basic_publish(exchange='', routing_key='hello', body=X, properties=pika.BasicProperties(
-        delivery_mode=2,
-        reply_to=callback_queue)
-    )
+    # generate unique id for each request
+    id = str(uuid.uuid4())
+    mydict = {"id":id, "text":X}
+    mycol.insert_one(mydict)
+    print(" [x] Sent %r" % id)
+    corr_id = mqClient.send_request(id)
 
-    # Wait for response
-    result = ""
-    def callback(ch, method, properties, body):
-        result = body
-        ch.stop_consuming()
+    while mqClient.queue[corr_id] is None:
+        sleep(0.1)
 
-    channel.basic_consume(queue=callback_queue, on_message_callback=callback, auto_ack=True)
-    channel.start_consuming()
-
-    return {"prediction": result}
+    return {"prediction": mqClient.queue[corr_id]}
 
 
 @app.post("/retrain")
