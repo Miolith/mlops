@@ -6,12 +6,6 @@ import sys
 import os
 import pymongo
 
-try:
-    pipe = loadModel()
-except:
-    trainModel()
-
-pipe = loadModel()
 
 def main():
 
@@ -21,6 +15,13 @@ def main():
     channel.queue_declare(queue='hello')
 
     def callback(ch, method, properties, body):
+        try:
+            pipe = loadModel()
+        except:
+            trainModel()
+        pipe = loadModel()
+
+
         print(" [x] Received %r" % body.decode())
         idVal = body.decode()
         print(" [x] Done")

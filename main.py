@@ -7,6 +7,7 @@ import uuid
 import pymongo
 import threading
 from time import sleep
+import joblib
 
 dbHost = "localhost"
 myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
@@ -15,14 +16,6 @@ mycol = mydb["preddata"]
 rabbitMQHost = "localhost"
 
 app = FastAPI()
-
-# if model.joblib is not present, train the model
-try:
-    pipe = loadModel()
-except:
-    trainModel()
-
-pipe = loadModel()
 
 
 class MQClient(object):
@@ -89,7 +82,19 @@ async def predict(X: str):
 
 @app.post("/retrain")
 async def retrain(X: str, y: str):
+    # if model.joblib is not present, train the model
+    try:
+        pipe = loadModel()
+    except:
+        trainModel()
+
+    pipe = loadModel()
+    pipe.steps[2][1].fit = pipe.steps[2][1].partial_fit
+
     df = pd.DataFrame([X], columns = ["text"])
-    df["label"] = 1 if y == "positive" else 0
-    pipe.fit(df["text"], df["label"])
+    label = 0 if y == "negative" else 1
+
+    pipe.fit(df["text"], [label])
+
+    joblib.dump(pipe, "model.joblib")
     return {"status": "success"}

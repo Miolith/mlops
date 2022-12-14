@@ -12,6 +12,9 @@ def trainModel():
     class CustomTransformer(BaseEstimator, TransformerMixin):
         def fit(self, X, y = None):
             return self
+
+        def partial_fit(self, X, y = None):
+            return self
         
         def transform(self, text_list, label = None):
             new_text_list = text_list.copy()
