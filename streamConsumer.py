@@ -25,7 +25,7 @@ def main():
         idVal = body.decode()
         print(" [x] Done")
 
-        values = list(mycol.find({"id":idVal},{"_id":0, "text":""}))[0]
+        values = mycol.find_one({"id":idVal})
 
         predict_input = pd.DataFrame([values['text']], columns=['text'])
         print("Prediction input: ", predict_input["text"])

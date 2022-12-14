@@ -9,8 +9,6 @@ import joblib
 
 
 def trainModel():
-    clf = MultinomialNB()
-
     class CustomTransformer(BaseEstimator, TransformerMixin):
         def fit(self, X, y = None):
             return self

@@ -83,7 +83,8 @@ async def predict(X: str):
     while mqClient.queue[corr_id] is None:
         sleep(0.1)
 
-    return {"prediction": mqClient.queue[corr_id]}
+    prediction = "negative" if mqClient.queue[corr_id] == b'0' else "positive"
+    return {"prediction": prediction}
 
 
 @app.post("/retrain")
