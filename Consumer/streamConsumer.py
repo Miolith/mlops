@@ -1,7 +1,7 @@
 import pika
 import pandas as pd
-from train_model import trainModel
-from load_model import loadModel
+from WebServer.train_model import trainModel
+from WebServer.load_model import loadModel
 import sys
 import os
 import pymongo
@@ -12,7 +12,7 @@ def main():
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
     channel = connection.channel()
 
-    channel.queue_declare(queue='hello')
+    channel.queue_declare(queue=queueName)
 
     def callback(ch, method, properties, body):
         try:
@@ -49,10 +49,17 @@ def main():
     print(' [*] Waiting for messages. To exit press CTRL+C')
     channel.start_consuming()
 
-dbHost = "localhost"
+dbHost = os.environ.get("DB_HOST")
+rabbitMQHost = os.environ.get("RABBITMQ_HOST")
+queueName = os.environ.get("QUEUE_NAME")
+heartBeatTimeOut = int(os.environ.get("HEART_BEAT_TIMEOUT"))
+blockedConnectionTimeOut = int(os.environ.get("BLOCKED_CONNECTION_TIMEOUT"))
+
 myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
 mydb = myclient["mydatabase"]
 mycol = mydb["preddata"]
+
+
 
 
 if __name__ == '__main__':

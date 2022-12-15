@@ -7,16 +7,20 @@ import uuid
 import pymongo
 import threading
 from time import sleep
-import joblib
 import random
+import os
 
-dbHost = "localhost"
+queueName = os.environ.get("QUEUE_NAME")
+rabbitMQHost = os.environ.get("RABBITMQ_HOST")
+dbHost = os.environ.get("DB_HOST")
+
 myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
 mydb = myclient["mydatabase"]
 mycol = mydb["preddata"]
-rabbitMQHost = "localhost"
+
 
 app = FastAPI()
+
 
 
 class MQClient(object):
@@ -57,7 +61,7 @@ class MQClient(object):
                                    body=payload)
         return corr_id  
 
-mqClient = MQClient("hello")
+mqClient = MQClient(queueName)
 
 
 @app.get("/")
