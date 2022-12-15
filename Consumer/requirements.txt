@@ -1,3 +1,5 @@
 pymongo
 pika
 scikit-learn
+pandas
+datasets

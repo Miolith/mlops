@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import pandas as pd
-from train_model import trainModel, loadData
-from load_model import loadModel
+from Model.train_model import trainModel, loadData
+from Model.load_model import loadModel
 import pika
 import uuid
 import pymongo

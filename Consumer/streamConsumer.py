@@ -1,15 +1,20 @@
 import pika
 import pandas as pd
-from WebServer.train_model import trainModel
-from WebServer.load_model import loadModel
+from Model.train_model import trainModel
+from Model.load_model import loadModel
 import sys
 import os
 import pymongo
 
+dbHost = os.environ.get("DB_HOST")
+rabbitMQHost = os.environ.get("RABBITMQ_HOST")
+queueName = os.environ.get("QUEUE_NAME")
+heartBeatTimeOut = int(os.environ.get("HEART_BEAT_TIMEOUT"))
+blockedConnectionTimeOut = int(os.environ.get("BLOCKED_CONNECTION_TIMEOUT"))
 
 def main():
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitMQHost))
     channel = connection.channel()
 
     channel.queue_declare(queue=queueName)
@@ -44,16 +49,12 @@ def main():
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     channel.basic_consume(
-        queue='hello', on_message_callback=callback)
+        queue=queueName, on_message_callback=callback)
 
     print(' [*] Waiting for messages. To exit press CTRL+C')
     channel.start_consuming()
 
-dbHost = os.environ.get("DB_HOST")
-rabbitMQHost = os.environ.get("RABBITMQ_HOST")
-queueName = os.environ.get("QUEUE_NAME")
-heartBeatTimeOut = int(os.environ.get("HEART_BEAT_TIMEOUT"))
-blockedConnectionTimeOut = int(os.environ.get("BLOCKED_CONNECTION_TIMEOUT"))
+
 
 myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
 mydb = myclient["mydatabase"]
