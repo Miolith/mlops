@@ -104,7 +104,7 @@ async def drift_detection():
     
     return {"drift": mqClient.queue[corr_id] == b'1'}
 
-@app.get("/force_drift")
+@app.get("/generate_drift")
 async def force_drift():
     
     vocab = ['Abstruse', 'Arduous', 'Byzantine', 'Cognoscenti', 'Daedalian', 'Ennui', 'Gorgonize', 'Hirsute', 'Ingenuous', 'Jactitation', 'Labyrinthine', 'Melancholie', 'Nadir', 'Obsequious', 'Pangolin', 'Quixotic', 'Risible', 'Sagacious', 'Tenebrous', 'Unctuous', 'Vexation', 'Winnows', 'Xanthic', 'Yokel', 'Zephyr']
