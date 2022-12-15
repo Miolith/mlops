@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import pandas as pd
-from train_model import trainModel
+from train_model import trainModel, loadData
 from load_model import loadModel
 import pika
 import uuid
@@ -82,19 +82,40 @@ async def predict(X: str):
 
 @app.post("/retrain")
 async def retrain(X: str, y: str):
-    # if model.joblib is not present, train the model
-    try:
-        pipe = loadModel()
-    except:
-        trainModel()
-
-    pipe = loadModel()
-    pipe.steps[2][1].fit = pipe.steps[2][1].partial_fit
-
-    df = pd.DataFrame([X], columns = ["text"])
     label = 0 if y == "negative" else 1
 
-    pipe.fit(df["text"], [label])
+    trainModel([X], [label])
+    pipe = loadModel()
 
-    joblib.dump(pipe, "model.joblib")
     return {"status": "success"}
+
+@app.get("/drift_detection")
+async def drift_detection():
+    pipe = loadModel()
+    # label data from mongodb as 1
+    label = 1
+    # get data from mongodb
+    data = mycol.find()
+    X = []
+    y = []
+    for x in data:
+        X.append(x['text'])
+        y.append(label)
+
+    # load train data
+    df = loadData()
+    X = X + df['text'].tolist()
+    y = y + df['label'].tolist()
+
+    # predict
+    X = pd.Series(X)
+    y_pred = pipe.predict(X)
+
+    # calculate accuracy
+    accuracy = (y_pred == y).sum() / len(y)
+
+    # if accuracy < 0.6, return drift
+    if accuracy < 0.6:
+        return {"drift": True}
+    
+    return {"drift": False}

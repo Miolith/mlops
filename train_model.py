@@ -7,13 +7,14 @@ from sklearn.feature_extraction.text import CountVectorizer
 import pandas as pd
 import joblib
 
+def loadData():
+    imdb_dataset = load_dataset("imdb")
+    train_df = imdb_dataset["train"].to_pandas()
+    return train_df
 
-def trainModel():
+def trainModel(more_text = [], more_label = []):
     class CustomTransformer(BaseEstimator, TransformerMixin):
         def fit(self, X, y = None):
-            return self
-
-        def partial_fit(self, X, y = None):
             return self
         
         def transform(self, text_list, label = None):
@@ -25,6 +26,10 @@ def trainModel():
 
     imdb_dataset = load_dataset("imdb")
     train_df = imdb_dataset["train"].to_pandas()
+
+    # add more text and label
+    if len(more_text) > 0:
+        train_df = pd.concat([train_df, pd.DataFrame({"text": more_text, "label": more_label})], ignore_index=True)
 
     pipe = make_pipeline(CustomTransformer(), CountVectorizer(), MultinomialNB())
     pipe.fit(train_df["text"], train_df["label"])
