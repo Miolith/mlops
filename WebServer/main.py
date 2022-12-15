@@ -1,7 +1,5 @@
 from fastapi import FastAPI
 import pandas as pd
-from Model.train_model import trainModel, loadData
-from Model.load_model import loadModel
 import pika
 import uuid
 import pymongo
@@ -17,6 +15,7 @@ dbHost = os.environ.get("DB_HOST")
 myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
 mydb = myclient["mydatabase"]
 mycol = mydb["preddata"]
+retrain_col = mydb["retraindata"]
 
 
 app = FastAPI()
@@ -27,9 +26,8 @@ class MQClient(object):
     internal_lock = threading.Lock()
     queue = {}
 
-    def __init__(self, queue_id):
+    def __init__(self):
 
-        self.queue_id = queue_id
         self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitMQHost))
         self.channel = self.connection.channel()
         result = self.channel.queue_declare(queue="", durable=True)
@@ -52,16 +50,16 @@ class MQClient(object):
          print(body)
 
 
-    def send_request(self, payload):
+    def send_request(self, queue_id, payload):
         corr_id = str(uuid.uuid4())
         self.queue[corr_id] = None
         self.channel.basic_publish(exchange='',
-                                   routing_key=self.queue_id,
+                                   routing_key=queue_id,
                                    properties=pika.BasicProperties(reply_to=self.callback_queue, correlation_id=corr_id),
                                    body=payload)
         return corr_id  
 
-mqClient = MQClient(queueName)
+mqClient = MQClient()
 
 
 @app.get("/")
@@ -76,7 +74,7 @@ async def predict(X: str):
     mydict = {"id":id, "text":X}
     mycol.insert_one(mydict)
     print(" [x] Sent %r" % id)
-    corr_id = mqClient.send_request(id)
+    corr_id = mqClient.send_request(queueName, id)
 
     while mqClient.queue[corr_id] is None:
         sleep(0.1)
@@ -88,49 +86,30 @@ async def predict(X: str):
 @app.post("/retrain")
 async def retrain(X: str, y: str):
     label = 0 if y == "negative" else 1
+    mydict = {"id":str(uuid.uuid4()), "text":X, "label":label}
+    retrain_col.insert_one(mydict)
 
-    trainModel([X], [label])
-    pipe = loadModel()
+    mqClient.send_request("retrain", mydict["id"])
 
     return {"status": "success"}
 
 @app.get("/drift_detection")
 async def drift_detection():
-    pipe = loadModel()
-    # label data from mongodb as 1
-    label = 1
-    # get data from mongodb
-    data = mycol.find()
-    X = []
-    y = []
-    for x in data:
-        X.append(x['text'])
-        y.append(label)
 
-    # load train data
-    df = loadData()
-    X = X + df['text'].tolist()
-    y = y + df['label'].tolist()
+    id = str(uuid.uuid4())
+    corr_id = mqClient.send_request("drift", id)
 
-    # predict
-    X = pd.Series(X)
-    y_pred = pipe.predict(X)
-
-    # calculate accuracy
-    accuracy = (y_pred == y).sum() / len(y)
-
-    # if accuracy < 0.6, return drift
-    if accuracy > 0.5:
-        return {"drift": True}
+    while mqClient.queue[corr_id] is None:
+        sleep(0.1)
     
-    return {"drift": False}
+    return {"drift": mqClient.queue[corr_id] == b'1'}
 
 @app.get("/force_drift")
 async def force_drift():
     
     vocab = ['Abstruse', 'Arduous', 'Byzantine', 'Cognoscenti', 'Daedalian', 'Ennui', 'Gorgonize', 'Hirsute', 'Ingenuous', 'Jactitation', 'Labyrinthine', 'Melancholie', 'Nadir', 'Obsequious', 'Pangolin', 'Quixotic', 'Risible', 'Sagacious', 'Tenebrous', 'Unctuous', 'Vexation', 'Winnows', 'Xanthic', 'Yokel', 'Zephyr']
 
-    for _ in range(100000):
+    for _ in range(20_000):
         mydict = {"id":str(uuid.uuid4()), "text": ' '.join(random.choices(vocab, k=10))}
         mycol.insert_one(mydict)
     return {"status": "success"}
