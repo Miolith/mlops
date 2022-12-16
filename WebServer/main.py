@@ -109,7 +109,7 @@ async def force_drift():
     
     vocab = ['Abstruse', 'Arduous', 'Byzantine', 'Cognoscenti', 'Daedalian', 'Ennui', 'Gorgonize', 'Hirsute', 'Ingenuous', 'Jactitation', 'Labyrinthine', 'Melancholie', 'Nadir', 'Obsequious', 'Pangolin', 'Quixotic', 'Risible', 'Sagacious', 'Tenebrous', 'Unctuous', 'Vexation', 'Winnows', 'Xanthic', 'Yokel', 'Zephyr']
 
-    for _ in range(20_000):
+    for _ in range(2_000):
         mydict = {"id":str(uuid.uuid4()), "text": ' '.join(random.choices(vocab, k=10))}
         mycol.insert_one(mydict)
     return {"status": "success"}

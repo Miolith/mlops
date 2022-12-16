@@ -2,6 +2,7 @@ import pika
 import pandas as pd
 from Model.train_model import trainModel, loadData
 from Model.load_model import loadModel
+from Model.drift import detect_drift
 import sys
 import os
 import pymongo
@@ -31,11 +32,11 @@ def main():
 
         values = mycol.find_one({"id":idVal})
 
-        predict_input = pd.DataFrame([values['text']], columns=['text'])
-        print("Prediction input: ", predict_input["text"])
-        predict_val = int(pipe.predict(predict_input["text"])[0])
+        predict_input = pd.Series([values['text']])
+        print(" [x]  Prediction input: ", predict_input[0])
+        predict_val = int(pipe.predict(predict_input)[0])
         query_val = {"id":idVal}
-        print("Prediction value: ", predict_val)
+        print(" [x] Prediction value: ", predict_val)
         pred_val_query = {"$set":{"prediction":predict_val}}
         mycol.update_one(query_val, pred_val_query)
 
@@ -47,6 +48,7 @@ def main():
         ch.basic_ack(delivery_tag=method.delivery_tag)
     
     def callback_retrain(ch, method, properties, body):
+        print(" [x] Retraining model with new data")
         print(" [x] Received %r" % body.decode())
         idVal = body.decode()
 
@@ -60,34 +62,16 @@ def main():
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def callback_drift(ch, method, properties, body):
-        # Detect distribution drift
+        print(" [x] Checking for drift")
         print(" [x] Received %r" % body.decode())
 
-        # Get all data from database
-        pipe = loadModel()
-        # label data from mongodb as 1
-        label = 1
-        # get data from mongodb
         data = mycol.find()
-        X = []
-        y = []
-        for x in data:
-            X.append(x['text'])
-            y.append(label)
+        X = pd.Series([x['text'] for x in data])
+        print(" [x] Production size: ", len(X))
 
-        # load train data
         df = loadData()
-        X = X + df['text'].tolist()
-        y = y + df['label'].tolist()
-
-        # predict
-        X = pd.Series(X)
-        y_pred = pipe.predict(X)
-
-        # calculate accuracy
-        accuracy = (y_pred == y).sum() / len(y)
-
-        drift = accuracy > 0.5
+        print(" [x] Training size: ", len(df['text']))
+        drift = detect_drift(X_train=df['text'], X_prod=X)
 
         print(" [x] Done")
         ch.basic_publish(exchange='',

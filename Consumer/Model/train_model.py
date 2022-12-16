@@ -24,8 +24,7 @@ def trainModel(more_text = [], more_label = []):
             
             return new_text_list
 
-    imdb_dataset = load_dataset("imdb")
-    train_df = imdb_dataset["train"].to_pandas()
+    train_df = loadData()
 
     # add more text and label
     if len(more_text) > 0:

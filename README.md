@@ -22,7 +22,7 @@ Pour chaque texte anglais en entrée, l'application détermine s'il est **négat
 Pour démarrer l'application
 
 ```
-docker-compose up --build
+docker-compose up
 ```
 
 L'application est ainsi mise en production via le gestionaire d'API Rest : **FastAPI**. Elle est disponible à l'adresse `http://localhost:8080/`
