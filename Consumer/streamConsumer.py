@@ -15,8 +15,14 @@ blockedConnectionTimeOut = int(os.environ.get("BLOCKED_CONNECTION_TIMEOUT"))
 
 def main():
 
-    trainModel()
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitMQHost))
+    # if file model.joblib does not exist, train the model
+    if not os.path.exists("model.joblib"):
+        trainModel()
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitMQHost, 
+                                        heartbeat=heartBeatTimeOut,
+                                        blocked_connection_timeout=blockedConnectionTimeOut)
+    )
     channel = connection.channel()
 
     channel.queue_declare(queue=queueName)
@@ -24,6 +30,9 @@ def main():
     channel.queue_declare(queue="drift")
 
     def callback_predict(ch, method, properties, body):
+        """
+        Callback function for prediction queue
+        """
         pipe = loadModel()
 
         print(" [x] Received %r" % body.decode())
@@ -48,11 +57,15 @@ def main():
         ch.basic_ack(delivery_tag=method.delivery_tag)
     
     def callback_retrain(ch, method, properties, body):
+        """
+        Callback function for training the model
+        with new data
+        """
         print(" [x] Retraining model with new data")
         print(" [x] Received %r" % body.decode())
         idVal = body.decode()
 
-        values = mycol.find_one({"id":idVal})
+        values = retrain_col.find_one({"id":idVal})
 
         retrain_input = [values['text']]
         label = [values['label']]
@@ -62,6 +75,9 @@ def main():
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def callback_drift(ch, method, properties, body):
+        """
+        Callback function for checking distribution shift
+        """
         print(" [x] Checking for drift")
         print(" [x] Received %r" % body.decode())
 
@@ -80,7 +96,10 @@ def main():
                         body='1' if drift else '0'
         )
         ch.basic_ack(delivery_tag=method.delivery_tag)
-
+    
+    
+    
+    channel.basic_qos(prefetch_count=1)
     channel.basic_consume(
         queue=queueName, on_message_callback=callback_predict)
     
@@ -99,8 +118,7 @@ def main():
 myclient = pymongo.MongoClient("mongodb://" + dbHost + ":27017")
 mydb = myclient["mydatabase"]
 mycol = mydb["preddata"]
-
-
+retrain_col = mydb["retraindata"]
 
 
 if __name__ == '__main__':

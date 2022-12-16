@@ -86,10 +86,11 @@ async def predict(X: str):
 @app.post("/retrain")
 async def retrain(X: str, y: str):
     label = 0 if y == "negative" else 1
-    mydict = {"id":str(uuid.uuid4()), "text":X, "label":label}
+    id = str(uuid.uuid4())
+    mydict = {"id":id, "text":X, "label":label}
     retrain_col.insert_one(mydict)
 
-    mqClient.send_request("retrain", mydict["id"])
+    mqClient.send_request("retrain", id)
 
     return {"status": "success"}
 
@@ -112,4 +113,11 @@ async def force_drift():
     for _ in range(2_000):
         mydict = {"id":str(uuid.uuid4()), "text": ' '.join(random.choices(vocab, k=10))}
         mycol.insert_one(mydict)
+    return {"status": "success"}
+
+# Empty the database
+@app.get("/empty_db")
+async def empty_db():
+    mycol.delete_many({})
+    retrain_col.delete_many({})
     return {"status": "success"}
